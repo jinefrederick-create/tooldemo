@@ -94,6 +94,20 @@ app.post("/api/session-notes/export", async (req, res) => {
 // 3. Start the server
 const PORT = process.env.PORT || 3000;
 
+// Simple ask-a-question endpoint
+app.post("/api/ask", (req, res) => {
+  const { question } = req.body || {};
+
+  if (!question) {
+    return res.status(400).json({ error: "No question provided" });
+  }
+
+  // For now, just echo something back so the UI works
+  const answer = `You asked: "${question}". (The server is running!)`;
+
+  res.json({ answer });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
