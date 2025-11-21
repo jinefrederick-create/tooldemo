@@ -4,6 +4,11 @@ const path = require("path");
 const fs = require("fs");
 const { Document, Packer, Paragraph, HeadingLevel } = require("docx");
 
+const OpenAI = require("openai");
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const app = express();
 app.use(express.json());
@@ -90,25 +95,72 @@ app.post("/api/session-notes/export", async (req, res) => {
   }
 });
 
+// ===== Export session notes as Word doc =====
+app.post("/api/session-notes/export", async (req, res) => {
+  // existing code
+});
+
+
+// ===== Your OpenAI route MUST be here — BEFORE app.listen =====
+app.post("/api/ask", async (req, res) => {
+  try {
+    const { question } = req.body || {};
+
+    if (!question) {
+      return res.status(400).json({ error: "No question provided" });
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a helpful tutor for law students." },
+        { role: "user", content: question }
+      ]
+    });
+
+    const answerText =
+      completion.choices[0]?.message?.content ||
+      "Sorry, I couldn't generate an answer.";
+
+    res.json({ answerText });
+  } catch (err) {
+    console.error("Error in /api/ask:", err);
+    res.status(500).json({ error: "Server error calling OpenAI" });
+  }
+});
+
+// ===== Your OpenAI route MUST be here — BEFORE app.listen =====
+app.post("/api/ask", async (req, res) => {
+  try {
+    const { question } = req.body || {};
+
+    if (!question) {
+      return res.status(400).json({ error: "No question provided" });
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a helpful tutor for law students." },
+        { role: "user", content: question }
+      ]
+    });
+
+    const answerText =
+      completion.choices[0]?.message?.content ||
+      "Sorry, I couldn't generate an answer.";
+
+    res.json({ answerText });
+  } catch (err) {
+    console.error("Error in /api/ask:", err);
+    res.status(500).json({ error: "Server error calling OpenAI" });
+  }
+});
 
 // 3. Start the server
 const PORT = process.env.PORT || 3000;
-
-// Simple ask-a-question endpoint
-app.post("/api/ask", (req, res) => {
-  const { question } = req.body || {};
-
-  if (!question) {
-    return res.status(400).json({ error: "No question provided" });
-  }
-
-  // For now, just echo something back so the UI works
-  const answer = `You asked: "${question}". (The server is running!)`;
-
-  res.json({ answer });
-});
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
