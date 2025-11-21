@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI + Audio Study Tool Demo</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 0.25rem;
+    }
+    #subtitle {
+      font-size: 0.95rem;
+      color: #6b7280;
+      margin-bottom: 1rem;
+    }
+    #log {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      height: 260px;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+      background: #f9fafb;
+      font-size: 0.95rem;
+    }
+    .msg-user {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .msg-ai {
+      margin-bottom: 0.75rem;
+    }
+    textarea {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      padding: 0.5rem;
+      resize: vertical;
+      font-size: 0.95rem;
+    }
+    button {
+      margin-top: 0.5rem;
+      margin-right: 0.5rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      cursor: pointer;
+      font-size: 0.9rem;
+      background: white;
+    }
+    button.primary {
+      background: #111827;
+      color: white;
+      border-color: #111827;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-left: 0.5rem;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    /* Persistent audio bar at bottom */
+    #audioBar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #ffffff;
+      border-top: 1px solid #e5e7eb;
+      padding: 0.5rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    #audioBar-info {
+      min-width: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    #audioBar-label {
+      font-weight: 600;
+    }
+
+    #audioBar-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #audioBar-progress {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    #progressBar {
+      flex: 1;
+    }
+
+    /* Add bottom padding so content isn’t hidden behind the bar */
+    body {
+      padding-bottom: 80px;
+    }
+
+    /* Progress steps bar */
+    #progressSteps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0.75rem 0 1.25rem;
+      font-size: 0.85rem;
+    }
+
+    .progress-step {
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .progress-step.active {
+      background: #111827;
+      color: #f9fafb;
+      font-weight: 600;
+    }
+
+    .progress-step.completed {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    /* Screen container styling */
+    .screen {
+      padding: 1rem 0;
+    }
+
+    .screen h2 {
+      margin-bottom: 0.5rem;
+    }
+    /* Smooth screen transitions */
+    .screen {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.5s ease,
+                  transform 0.5s ease;
+      display: none;
+    }
+
+    .screen.active {
+      display: block !important;
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <h1>AI + Audio Based Study Tool Demo</h1>
+  <div id="subtitle">
+    Thank you for testing this demo! You can choose between the Unabridged Casebook or Brief Summary version of the audio-case. Note that only the Brief Summary version includes cold-call style questions. After listening, you can take an optional audio-quiz, ask follow up questions by voice or text, and save quick voice notes to download at the end. Please be sure the fill out the review that is linked in the email that I sent you. I want to incorporate your feedback! -Jiné
+  </div>
+
+  <!-- Progress steps -->
+  <div id="progressSteps">
+    <span class="progress-step" data-step="welcome">Welcome</span>
+    <span class="progress-step" data-step="case">Case</span>
+    <span class="progress-step" data-step="quizDecision">Quiz Decision</span>
+    <span class="progress-step" data-step="quiz">Quiz</span>
+    <span class="progress-step" data-step="conclusion">Conclusion</span>
+  </div>
+
+  <!-- Demo screens -->
+  <div id="demoScreens">
+    <!-- Welcome Screen -->
+    <div class="screen" id="screenWelcome">
+      <h2>Ready to Seamlessly Study? Click "Start Demo!"</h2>
+      <button id="btnStartDemo">Start Demo</button>
+    </div>
+
+    <!-- Case Selection Screen -->
+    <div class="screen" id="screenCaseSelect" style="display:none;">
+      <h2>Which Version of the Case Would You Like to Listen To?</h2>
+      <button id="btnCaseUnabridged">Unabridged Casebook</button>
+      <button id="btnCaseBrief">Brief Summary</button>
+    </div>
+
+    <!-- Case Audio Screen -->
+    <div class="screen" id="screenCaseAudio" style="display:none;">
+      <h2 id="caseAudioTitle">Case Audio</h2>
+
+      <details id="transcriptBox" style="margin-top: 1rem; display:none;">
+        <summary style="cursor: pointer; font-weight: 600;">Show Transcript</summary>
+        <pre id="transcriptText" style="
+          white-space: pre-wrap;
+          font-size: 0.95rem;
+          background: #f3f4f6;
+          padding: 0.75rem;
+          border-radius: 6px;
+          margin-top: 0.5rem;
+        "></pre>
+      </details>
+    </div>
+
+    <!-- Quiz Decision Screen -->
+    <div class="screen" id="screenQuizDecision" style="display:none;">
+      <h2>Ready for the Quiz?</h2>
+      <p>Would you like to take the interactive quiz for this case?</p>
+      <button id="btnYesQuiz">Yes, start quiz</button>
+      <button id="btnNoQuiz">No, skip to conclusion</button>
+    </div>
+
+    <!-- Quiz Audio Screen -->
+    <div class="screen" id="screenQuizAudio" style="display:none;">
+      <h2>Interactive Quiz</h2>
+
+      <details id="quizTranscriptBox" style="margin-top: 1rem; display:none;">
+        <summary style="cursor: pointer; font-weight: 600;">Show Transcript</summary>
+        <pre id="quizTranscriptText" style="
+          white-space: pre-wrap;
+          font-size: 0.95rem;
+          background: #f3f4f6;
+          padding: 0.75rem;
+          border-radius: 6px;
+          margin-top: 0.5rem;
+        "></pre>
+      </details>
+    </div>
+
+    <!-- Quiz Results Screen -->
+    <div class="screen" id="screenQuizResults" style="display:none;">
+      <h2>Quiz Summary</h2>
+      <p id="quizResultsText"></p>
+      <button id="btnGoToConclusion">Play Conclusion</button>
+    </div>
+
+    <!-- Conclusion Screen -->
+    <div class="screen" id="screenConclusion" style="display:none;">
+      <h2>Conclusion</h2>
+
+      <details id="conclusionTranscriptBox" style="margin-top: 1rem; display:none;">
+        <summary style="cursor: pointer; font-weight: 600;">Show Transcript</summary>
+        <pre id="conclusionTranscriptText" style="
+          white-space: pre-wrap;
+          font-size: 0.95rem;
+          background: #f3f4f6;
+          padding: 0.75rem;
+          border-radius: 6px;
+          margin-top: 0.5rem;
+        "></pre>
+      </details>
+
+      <button id="btnRestartDemo" style="margin-top:1rem;">Restart Demo</button>
+    </div>
+  </div>
+
+  <div id="log"></div>
+
+  <textarea
+    id="textInput"
+    rows="3"
+    placeholder="Type a question about Raffles v. Wichelhaus or Contracts law..."
+  ></textarea><br />
+  <button id="sendBtn" class="primary">Send</button>
+  <button id="voiceBtn">🎙️ Speak</button>
+  <span id="status"></span>
+
+  <!-- Hidden audio player; controlled via JS -->
+  <audio id="audioPlayer"></audio>
+
+  <!-- Persistent audio bar -->
+  <footer id="audioBar">
+    <div id="audioBar-info">
+      <span id="audioBar-label">No audio playing</span>
+      <span id="audioBar-sub">Ready</span>
+    </div>
+
+    <div id="audioBar-controls">
+      <button id="playPauseBtn">Play</button>
+      <button id="replayBtn">Replay</button>
+    </div>
+
+    <div id="audioBar-progress">
+      <span id="currentTime">0:00</span>
+      <input
+        type="range"
+        id="progressBar"
+        min="0"
+        max="100"
+        value="0"
+      />
+      <span id="duration">0:00</span>
+    </div>
+  </footer>
+
+  <!-- ===== Lawdio Voice Notes for this Case ===== -->
+  <section>
+    <h2>AudioNotes</h2>
+    <p> Just click "Start Recording Note" and speak the notes that you would have typed. After you are done speaking and/or editing your speech, click "Save Note to Session." To export to a word doc, click "Export Session Notes as Word Doc." </p>
+
+    <!-- Tag this page with a case ID; change value per case -->
+    <input type="hidden" id="caseId" value="raffles-v-wichelhaus" />
+
+    <button id="notesStartBtn">🎙 Start Recording Note</button>
+    <button id="notesStopBtn" disabled>Stop</button>
+
+    <p id="notesStatus">Not recording</p>
+
+    <label for="currentNote">Current Note (you can edit before saving!):</label><br />
+    <textarea
+      id="currentNote"
+      rows="3"
+      cols="60"
+      placeholder="Your note will appear here..."
+    ></textarea><br />
+
+    <button id="saveNoteBtn">Save Note to Session</button>
+  </section>
+
+  <hr />
+
+  <section>
+    <h3>Raffles v. Wichelhaus Notes </h3>
+    <ul id="notesList"></ul>
+
+    <button id="exportBtn">Export Session Notes as Word Doc</button>
+  </section>
+
+  <script>
+    /* ========================================================
+       UTILITIES + SCREEN ROUTER
+    ======================================================== */
+
+    function showScreen(screenId) {
+      document.querySelectorAll(".screen").forEach((div) => {
+        if (div.id === screenId) {
+          div.classList.add("active");
+        } else {
+          div.classList.remove("active");
+        }
+      });
+    }
+
+    function setStep(step) {
+      const order = ["welcome", "case", "quizDecision", "quiz", "results", "conclusion"];
+      const steps = document.querySelectorAll(".progress-step");
+
+      steps.forEach((el) => {
+        const s = el.getAttribute("data-step");
+        el.classList.remove("active", "completed");
+
+        if (s === step) {
+          el.classList.add("active");
+        } else {
+          const stepIndex = order.indexOf(step);
+          const sIndex = order.indexOf(s);
+          if (sIndex >= 0 && sIndex < stepIndex) {
+            el.classList.add("completed");
+          }
+        }
+      });
+    }
+
+    /* ========================================================
+       DOM ELEMENTS
+    ======================================================== */
+
+    const audioPlayer = document.getElementById("audioPlayer");
+
+    /* Buttons */
+    const btnStartDemo = document.getElementById("btnStartDemo");
+    const btnCaseUnabridged = document.getElementById("btnCaseUnabridged");
+    const btnCaseBrief = document.getElementById("btnCaseBrief");
+
+    const btnYesQuiz = document.getElementById("btnYesQuiz");
+    const btnNoQuiz = document.getElementById("btnNoQuiz");
+
+    const btnGoToConclusion = document.getElementById("btnGoToConclusion");
+    const btnRestartDemo = document.getElementById("btnRestartDemo");
+
+    /* Transcript containers */
+    const transcriptBox = document.getElementById("transcriptBox");
+    const transcriptText = document.getElementById("transcriptText");
+
+    const quizTranscriptBox = document.getElementById("quizTranscriptBox");
+    const quizTranscriptText = document.getElementById("quizTranscriptText");
+
+    const conclusionTranscriptBox = document.getElementById("conclusionTranscriptBox");
+    const conclusionTranscriptText = document.getElementById("conclusionTranscriptText");
+
+    /* Results text */
+    const quizResultsText = document.getElementById("quizResultsText");
+
+    /* Audio bar elements */
+    const audioBarLabel = document.getElementById("audioBar-label");
+    const audioBarSub = document.getElementById("audioBar-sub");
+    const playPauseBtn = document.getElementById("playPauseBtn");
+    const replayBtn = document.getElementById("replayBtn");
+    const progressBar = document.getElementById("progressBar");
+    const currentTimeEl = document.getElementById("currentTime");
+    const durationEl = document.getElementById("duration");
+
+    /* Q&A elements */
+    const logEl = document.getElementById("log");
+    const textInput = document.getElementById("textInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const voiceBtn = document.getElementById("voiceBtn");
+    const statusEl = document.getElementById("status");
+
+    /* ========================================================
+       STATE
+    ======================================================== */
+
+    let currentAudioKind = null;
+    let currentCaseVersion = null;
+    let quizTaken = false;
+
+    /* Transcripts */
+    const TRANSCRIPTS = {
+      unabridged: "[Unabridged transcript goes here.]",
+      brief: "[Case brief transcript goes here.]",
+      quiz: "[Quiz transcript goes here.]",
+      conclusion: "[Conclusion transcript goes here.]"
+    };
+
+    /* ========================================================
+       AUDIO FLOW + TRANSITIONS
+    ======================================================== */
+
+    function startCase(version) {
+      currentAudioKind = "case";
+      currentCaseVersion = version;
+      quizTaken = false;
+
+      showScreen("screenCaseAudio");
+      setStep("case");
+
+      transcriptBox.style.display = "block";
+      transcriptBox.open = false;
+      transcriptText.textContent = TRANSCRIPTS[version];
+
+      audioPlayer.src = version === "unabridged"
+        ? "/audio/raffles_unabridged.mp3"
+        : "/audio/raffles_brief.mp3";
+
+      audioBarLabel.textContent = version === "unabridged"
+        ? "Unabridged Casebook"
+        : "Case Brief Summary";
+
+      audioBarSub.textContent = "Raffles v. Wichelhaus (1864)";
+
+      audioPlayer.play().catch(err => console.error(err));
+    }
+
+    function startQuiz() {
+      currentAudioKind = "quiz";
+      quizTaken = true;
+
+      showScreen("screenQuizAudio");
+      setStep("quiz");
+
+      quizTranscriptBox.style.display = "block";
+      quizTranscriptBox.open = false;
+      quizTranscriptText.textContent = TRANSCRIPTS.quiz;
+
+      audioPlayer.src = "/audio/raffles_quiz.mp3";
+      audioBarLabel.textContent = "Interactive Quiz";
+      audioBarSub.textContent = "Raffles v. Wichelhaus";
+
+      audioPlayer.play().catch(err => console.error(err));
+    }
+
+    function showQuizResults() {
+      showScreen("screenQuizResults");
+      setStep("results");
+
+      const versionText =
+        currentCaseVersion === "unabridged"
+          ? "the Unabridged Casebook"
+          : "the Case Brief Summary";
+
+      quizResultsText.textContent = quizTaken
+        ? `You listened to ${versionText} and completed the quiz.`
+        : `You listened to ${versionText} and skipped the quiz.`;
+    }
+
+    function startConclusion() {
+      currentAudioKind = "conclusion";
+
+      showScreen("screenConclusion");
+      setStep("conclusion");
+
+      conclusionTranscriptBox.style.display = "block";
+      conclusionTranscriptBox.open = false;
+      conclusionTranscriptText.textContent = TRANSCRIPTS.conclusion;
+
+      audioPlayer.src = "/audio/raffles_conclusion.mp3";
+      audioBarLabel.textContent = "Conclusion";
+      audioBarSub.textContent = "Demo wrap-up";
+
+      audioPlayer.play().catch(err => console.error(err));
+    }
+
+    /* When audio finishes, move to next step */
+    audioPlayer.addEventListener("ended", () => {
+      if (currentAudioKind === "case") {
+        showScreen("screenQuizDecision");
+        setStep("quizDecision");
+      }
+      else if (currentAudioKind === "quiz") {
+        showQuizResults();
+      }
+      else if (currentAudioKind === "conclusion") {
+        audioBarSub.textContent = "Demo complete — thank you!";
+      }
+    });
+
+    /* ========================================================
+       BUTTON HANDLERS
+    ======================================================== */
+
+    btnStartDemo.addEventListener("click", () => {
+      showScreen("screenCaseSelect");
+      setStep("welcome");
+    });
+
+    btnCaseUnabridged.addEventListener("click", () => startCase("unabridged"));
+    btnCaseBrief.addEventListener("click", () => startCase("brief"));
+
+    btnYesQuiz.addEventListener("click", () => startQuiz());
+    btnNoQuiz.addEventListener("click", () => {
+      quizTaken = false;
+      startConclusion();
+    });
+
+    btnGoToConclusion.addEventListener("click", () => startConclusion());
+
+    btnRestartDemo.addEventListener("click", () => {
+      currentAudioKind = null;
+      currentCaseVersion = null;
+      quizTaken = false;
+
+      audioPlayer.pause();
+      audioPlayer.src = "";
+
+      showScreen("screenWelcome");
+      setStep("welcome");
+    });
+
+    /* ========================================================
+       AUDIO BAR CONTROLS
+    ======================================================== */
+
+    function formatTime(seconds) {
+      const s = Math.floor(seconds || 0);
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${m}:${String(r).padStart(2, "0")}`;
+    }
+
+    playPauseBtn.addEventListener("click", () => {
+      if (!audioPlayer.src) return;
+      audioPlayer.paused ? audioPlayer.play() : audioPlayer.pause();
+    });
+
+    replayBtn.addEventListener("click", () => {
+      if (!audioPlayer.src) return;
+      audioPlayer.currentTime = 0;
+      audioPlayer.play();
+    });
+
+    audioPlayer.addEventListener("timeupdate", () => {
+      if (!audioPlayer.duration) return;
+      progressBar.value = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+      currentTimeEl.textContent = formatTime(audioPlayer.currentTime);
+    });
+
+    progressBar.addEventListener("input", () => {
+      if (!audioPlayer.duration) return;
+      audioPlayer.currentTime =
+        (progressBar.value / 100) * audioPlayer.duration;
+    });
+
+    audioPlayer.addEventListener("loadedmetadata", () => {
+      durationEl.textContent = formatTime(audioPlayer.duration);
+    });
+
+    /* ========================================================
+       Q&A SECTION
+    ======================================================== */
+
+    function addMessage(role, text) {
+      const div = document.createElement("div");
+      div.className = role === "user" ? "msg-user" : "msg-ai";
+      div.textContent = (role === "user" ? "You: " : "AI: ") + text;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text || "";
+    }
+
+    async function sendToServer(text) {
+      if (!text) return;
+
+      addMessage("user", text);
+      setStatus("Thinking...");
+      sendBtn.disabled = true;
+      voiceBtn.disabled = true;
+
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: text }),
+        });
+
+        if (!res.ok) throw new Error("Server error");
+
+        const data = await res.json();
+        addMessage("assistant", data.answerText || "[no answer text]");
+
+        if (data.audioUrl) {
+          audioPlayer.src = data.audioUrl;
+          audioBarLabel.textContent = "AI Answer";
+          audioBarSub.textContent = "Contracts Tutor";
+          audioPlayer.play();
+        }
+
+        setStatus("");
+      } catch (err) {
+        console.error(err);
+        setStatus("Error connecting to server.");
+      } finally {
+        sendBtn.disabled = false;
+        voiceBtn.disabled = !window.__speechSupported;
+      }
+    }
+
+    sendBtn.addEventListener("click", () => {
+      const value = textInput.value.trim();
+      if (!value) return;
+      textInput.value = "";
+      sendToServer(value);
+    });
+
+    textInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        sendBtn.click();
+      }
+    });
+
+    /* Speech recognition for Q&A */
+    let recognition;
+    let listening = false;
+    window.__speechSupported = false;
+
+    if ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SR();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+
+      window.__speechSupported = true;
+
+      recognition.onstart = () => {
+        listening = true;
+        setStatus("Listening…");
+        voiceBtn.textContent = "🛑 Stop";
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        setStatus("");
+        voiceBtn.textContent = "🎙️ Speak";
+      };
+
+      recognition.onerror = (event) => {
+        console.error(event);
+        setStatus("Speech error: " + event.error);
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        sendToServer(transcript);
+      };
+
+      voiceBtn.addEventListener("click", () => {
+        listening ? recognition.stop() : recognition.start();
+      });
+    } else {
+      voiceBtn.disabled = true;
+    }
+
+    /* Initialize */
+    showScreen("screenWelcome");
+    setStep("welcome");
+  </script>
+
+  <!-- ===== Voice Notes Script (separate from Q&A mic) ===== -->
+<script>
+  console.log("Voice notes script loaded");
+
+  // Separate recognition instance + state for notes
+  let notesRecognition = null;
+  let notesRecording = false;
+  const sessionNotes = [];
+
+  const notesStartBtn = document.getElementById("notesStartBtn");
+  const notesStopBtn = document.getElementById("notesStopBtn");
+  const notesStatusEl = document.getElementById("notesStatus");
+  const currentNoteEl = document.getElementById("currentNote");
+  const saveNoteBtn = document.getElementById("saveNoteBtn");
+  const notesListEl = document.getElementById("notesList");
+  const exportBtn = document.getElementById("exportBtn");
+  const caseIdEl = document.getElementById("caseId");
+
+  function initNotesRecognition() {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser. Use Chrome on desktop.");
+      return null;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      console.log("Notes recognition started");
+      notesStatusEl.textContent = "Recording... speak 2–3 sentences.";
+    };
+
+    rec.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      console.log("Notes transcript:", transcript);
+
+      // ⏱️ Grab current time from the main audio player
+      const timestamp = typeof formatTime === "function"
+        ? formatTime(audioPlayer.currentTime || 0)
+        : `${Math.round(audioPlayer.currentTime || 0)}s`;
+
+      // Pre-fill the note box with [timestamp] + transcript
+      currentNoteEl.value = `[${timestamp}] ${transcript}`;
+    };
+
+    rec.onerror = (event) => {
+      console.error("Notes recognition error:", event.error);
+      notesStatusEl.textContent = "Error: " + event.error;
+      notesRecording = false;
+      notesStartBtn.disabled = false;
+      notesStopBtn.disabled = true;
+    };
+
+    rec.onend = () => {
+      console.log("Notes recognition ended");
+      notesRecording = false;
+      notesStartBtn.disabled = false;
+      notesStopBtn.disabled = true;
+      if (!notesStatusEl.textContent.startsWith("Error")) {
+        notesStatusEl.textContent = "Stopped recording.";
+      }
+    };
+
+    return rec;
+  }
+
+  // Start recording note
+  notesStartBtn.addEventListener("click", () => {
+    console.log("Notes start button clicked");
+    if (!notesRecognition) {
+      notesRecognition = initNotesRecognition();
+      if (!notesRecognition) return;
+    }
+
+    try {
+      notesRecognition.start();
+      notesRecording = true;
+      notesStartBtn.disabled = true;
+      notesStopBtn.disabled = false;
+      notesStatusEl.textContent = "Recording... speak 2–3 sentences.";
+    } catch (err) {
+      console.error("Error calling notesRecognition.start()", err);
+      notesStatusEl.textContent =
+        "Could not start recording. Check console for details.";
+      notesStartBtn.disabled = false;
+      notesStopBtn.disabled = true;
+    }
+  });
+
+  // Stop recording note
+  notesStopBtn.addEventListener("click", () => {
+    console.log("Notes stop button clicked");
+    if (notesRecognition && notesRecording) {
+      notesRecognition.stop();
+      notesStatusEl.textContent = "Stopping...";
+    }
+  });
+
+  // Save current note to session (with timestamp)
+  saveNoteBtn.addEventListener("click", () => {
+    const raw = currentNoteEl.value.trim();
+    if (!raw) {
+      alert("No note to save.");
+      return;
+    }
+
+    // ⏱️ Get timestamp from audio player
+    const timestamp = typeof formatTime === "function"
+      ? formatTime(audioPlayer.currentTime || 0)
+      : `${Math.round(audioPlayer.currentTime || 0)}s`;
+
+    // If it already starts with [m:ss], don’t double-prefix
+    const hasBracket =
+      raw.startsWith("[") && raw.indexOf("]") > 0 && raw.indexOf("]") < 7;
+
+    const noteText = hasBracket ? raw : `[${timestamp}] ${raw}`;
+
+    sessionNotes.push(noteText);
+    currentNoteEl.value = "";
+    renderNotes();
+  });
+
+  function renderNotes() {
+    notesListEl.innerHTML = "";
+    sessionNotes.forEach((note, index) => {
+      const li = document.createElement("li");
+      li.textContent = `${index + 1}. ${note}`;
+      notesListEl.appendChild(li);
+    });
+  }
+
+  // Export notes
+  exportBtn.addEventListener("click", async () => {
+    if (sessionNotes.length === 0) {
+      alert("You don't have any saved notes for this session yet.");
+      return;
+    }
+
+    const caseId = caseIdEl ? caseIdEl.value : "lawdio-case";
+
+    try {
+      const res = await fetch("/api/session-notes/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId, notes: sessionNotes }),
+      });
+
+      if (!res.ok) {
+        alert("Error exporting notes.");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.downloadUrl) {
+        window.location.href = data.downloadUrl;
+      } else {
+        alert("No download URL returned.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network or server error.");
+    }
+  });
+</script>
+
+</body>
+</html>
+
+

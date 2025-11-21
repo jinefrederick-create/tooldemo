@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Lawdio Voice Notes Test</title>
+  </head>
+  <body>
+    <h1>Voice Notes Test</h1>
+
+    <input type="hidden" id="caseId" value="test-case" />
+
+    <button id="startBtn">🎙 Start Recording Note</button>
+    <button id="stopBtn" disabled>Stop</button>
+
+    <p id="status">Not recording</p>
+
+    <label for="currentNote">Current Note:</label><br />
+    <textarea
+      id="currentNote"
+      rows="3"
+      cols="60"
+      placeholder="Your note will appear here..."
+    ></textarea
+    ><br />
+
+    <button id="saveNoteBtn">Save Note to Session</button>
+
+    <h3>Notes in this Session</h3>
+    <ul id="notesList"></ul>
+
+    <button id="exportBtn">Export Session Notes as Word Doc</button>
+
+    <script>
+      console.log("Voice notes script loaded"); // debug
+
+      let recognition = null;
+      let isRecording = false;
+      const sessionNotes = [];
+
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const statusEl = document.getElementById("status");
+      const currentNoteEl = document.getElementById("currentNote");
+      const saveNoteBtn = document.getElementById("saveNoteBtn");
+      const notesListEl = document.getElementById("notesList");
+      const exportBtn = document.getElementById("exportBtn");
+      const caseIdEl = document.getElementById("caseId");
+
+      function initSpeechRecognition() {
+        const SpeechRecognition =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+          alert(
+            "Speech recognition is not supported in this browser. Use Chrome on desktop."
+          );
+          return null;
+        }
+
+        const rec = new SpeechRecognition();
+        rec.lang = "en-US";
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+
+        rec.onstart = () => {
+          console.log("Recognition started");
+          statusEl.textContent = "Recording... speak 2–3 sentences.";
+        };
+
+        rec.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          console.log("Transcript:", transcript);
+          currentNoteEl.value = transcript;
+        };
+
+        rec.onerror = (event) => {
+          console.error("Speech recognition error:", event.error);
+          statusEl.textContent = "Error: " + event.error;
+          isRecording = false;
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+        };
+
+        rec.onend = () => {
+          console.log("Recognition ended");
+          isRecording = false;
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          if (!statusEl.textContent.startsWith("Error")) {
+            statusEl.textContent = "Stopped recording.";
+          }
+        };
+
+        return rec;
+      }
+
+      // Start recording
+      startBtn.addEventListener("click", () => {
+        console.log("Start button clicked");
+        if (!recognition) {
+          recognition = initSpeechRecognition();
+          if (!recognition) return;
+        }
+
+        try {
+          recognition.start();
+          isRecording = true;
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+          statusEl.textContent = "Recording... speak 2–3 sentences.";
+        } catch (err) {
+          console.error("Error calling recognition.start()", err);
+          statusEl.textContent =
+            "Could not start recording. Check console for details.";
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+        }
+      });
+
+      // Stop recording
+      stopBtn.addEventListener("click", () => {
+        console.log("Stop button clicked");
+        if (recognition && isRecording) {
+          recognition.stop();
+          statusEl.textContent = "Stopping...";
+        }
+      });
+
+      // Save current note to session
+      saveNoteBtn.addEventListener("click", () => {
+        const text = currentNoteEl.value.trim();
+        if (!text) {
+          alert("No note to save.");
+          return;
+        }
+        sessionNotes.push(text);
+        currentNoteEl.value = "";
+        renderNotes();
+      });
+
+      function renderNotes() {
+        notesListEl.innerHTML = "";
+        sessionNotes.forEach((note, index) => {
+          const li = document.createElement("li");
+          li.textContent = `${index + 1}. ${note}`;
+          notesListEl.appendChild(li);
+        });
+      }
+
+      // Export notes
+      exportBtn.addEventListener("click", async () => {
+        if (sessionNotes.length === 0) {
+          alert("You don't have any saved notes for this session yet.");
+          return;
+        }
+
+        const caseId = caseIdEl ? caseIdEl.value : "lawdio-case";
+
+        try {
+          const res = await fetch("/api/session-notes/export", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ caseId, notes: sessionNotes }),
+          });
+
+          if (!res.ok) {
+            alert("Error exporting notes.");
+            return;
+          }
+
+          const data = await res.json();
+          if (data.downloadUrl) {
+            window.location.href = data.downloadUrl;
+          } else {
+            alert("No download URL returned.");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Network or server error.");
+        }
+      });
+    </script>
+  </body>
+</html>
+

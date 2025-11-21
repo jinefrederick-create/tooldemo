@@ -1,0 +1,9 @@
+# Don't track environment variables
+.env
+
+# Don't track notes / docs
+notes/
+*.docx
+
+# Node stuff
+node_modules
