@@ -605,7 +605,7 @@
     function addMessage(role, text) {
       const div = document.createElement("div");
       div.className = role === "user" ? "msg-user" : "msg-ai";
-      div.textContent = (role === "user" ? "You: " : "AI: ") + text;
+      div.textContent = (role === "user" ? "You: " : "Study Coach: ") + text;
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
     }
