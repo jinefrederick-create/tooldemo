@@ -46,7 +46,7 @@ app.post("/api/session-notes/export", async (req, res) => {
     // Optional title
     children.push(
       new Paragraph({
-        text: `Lawdio Notes – ${safeCaseId}`,
+        text: `Notes: – ${safeCaseId}`,
         heading: HeadingLevel.HEADING_1,
       })
     );
