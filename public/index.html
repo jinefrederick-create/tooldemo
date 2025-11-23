@@ -615,55 +615,66 @@
     }
 
     async function sendToServer(text) {
-      if (!text) return;
+  // Disable buttons while the request is in progress
+  sendBtn.disabled = true;
+  voiceBtn.disabled = true;
+  setStatus("Thinking...");
 
-      addMessage("user", text);
-      setStatus("Thinking...");
-      sendBtn.disabled = true;
-      voiceBtn.disabled = true;
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: text }),
+    });
 
-      try {
-        const res = await fetch("/api/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: text }),
-        });
+    if (!res.ok) throw new Error("Server error");
 
-        if (!res.ok) throw new Error("Server error");
+    const data = await res.json();
 
-        const data = await res.json();
-        addMessage("assistant", data.answerText || "[no answer text]");
+    // Show the AI's text answer in the chat UI
+    addMessage("assistant", data.answerText || "[no answer text]");
 
-        if (data.audioUrl) {
-          audioPlayer.src = data.audioUrl;
-          audioBarLabel.textContent = "AI Answer";
-          audioBarSub.textContent = "Contracts Tutor";
-          audioPlayer.play();
-        }
+    // If the server sent back audio, decode + play it
+    if (data.audioBase64) {
+      const audioBytes = Uint8Array.from(atob(data.audioBase64), (c) =>
+        c.charCodeAt(0)
+      );
+      const audioBlob = new Blob([audioBytes], { type: "audio/mp3" });
+      const audioUrl = URL.createObjectURL(audioBlob);
 
-        setStatus("");
-      } catch (err) {
-        console.error(err);
-        setStatus("Error connecting to server.");
-      } finally {
-        sendBtn.disabled = false;
-        voiceBtn.disabled = !window.__speechSupported;
-      }
+      audioPlayer.src = audioUrl;
+      audioBarLabel.textContent = "AI Answer";
+      audioBarSub.textContent = "Contracts Tutor";
+      audioPlayer.play();
     }
 
-    sendBtn.addEventListener("click", () => {
-      const value = textInput.value.trim();
-      if (!value) return;
-      textInput.value = "";
-      sendToServer(value);
-    });
+    setStatus("");
+  } catch (err) {
+    console.error(err);
+    setStatus("Error connecting to server.");
+  } finally {
+    // Re-enable buttons
+    sendBtn.disabled = false;
+    voiceBtn.disabled = !window.__speechSupported;
+  }
+}
 
-    textInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        sendBtn.click();
-      }
-    });
+// Click handler for the Send button
+sendBtn.addEventListener("click", () => {
+  const value = textInput.value.trim();
+  if (!value) return;
+  textInput.value = "";
+  sendToServer(value);
+});
+
+// Keyboard shortcut: Ctrl+Enter or Cmd+Enter to send
+textInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+
 
     /* Speech recognition for Q&A */
     let recognition;

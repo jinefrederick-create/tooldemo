@@ -89,7 +89,7 @@ app.post("/api/session-notes/export", async (req, res) => {
   }
 });
 
-// ===== Ask route: call OpenAI and return answerText =====
+// ===== Ask route: call OpenAI and return answerText + audio =====
 app.post("/api/ask", async (req, res) => {
   try {
     const { question } = req.body || {};
@@ -98,6 +98,7 @@ app.post("/api/ask", async (req, res) => {
       return res.status(400).json({ error: "No question provided" });
     }
 
+    // 1) Get the AI's text answer (same as before)
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -110,13 +111,28 @@ app.post("/api/ask", async (req, res) => {
       completion.choices[0]?.message?.content ||
       "Sorry, I couldn't generate an answer.";
 
-    // This matches your frontend: data.answerText
-    res.json({ answerText });
+    // 2) Turn that text into speech
+    const speechResponse = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",   // text-to-speech model
+      voice: "alloy",             // you can change this later
+      input: answerText,
+    });
+
+    // 3) Convert audio to base64 so the browser can play it
+    const audioBuffer = Buffer.from(await speechResponse.arrayBuffer());
+    const audioBase64 = audioBuffer.toString("base64");
+
+    // 4) Return BOTH text + audio to the frontend
+    res.json({
+      answerText,
+      audioBase64,
+    });
   } catch (err) {
     console.error("Error in /api/ask:", err);
     res.status(500).json({ error: "Server error calling OpenAI" });
   }
 });
+
 
 // 3. Start the server
 const PORT = process.env.PORT || 3000;
