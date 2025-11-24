@@ -333,7 +333,7 @@
   <hr />
 
   <section>
-    <h3>Raffles v. Wichelhaus Notes </h3>
+    <h3>Raffles v. Wichelhaus  </h3>
     <ul id="notesList"></ul>
 
     <button id="exportBtn">Export Session Notes as Word Doc</button>
@@ -570,6 +570,20 @@
       const r = s % 60;
       return `${m}:${String(r).padStart(2, "0")}`;
     }
+
+    // 🔽 ADD THESE THREE LISTENERS 🔽
+audioPlayer.addEventListener("play", () => {
+  playPauseBtn.textContent = "Pause";
+});
+
+audioPlayer.addEventListener("pause", () => {
+  // 'pause' also fires right before 'ended', so this is safe
+  playPauseBtn.textContent = "Play";
+});
+
+audioPlayer.addEventListener("ended", () => {
+  playPauseBtn.textContent = "Play";
+});
 
     playPauseBtn.addEventListener("click", () => {
       if (!audioPlayer.src) return;
