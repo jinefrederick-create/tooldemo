@@ -628,12 +628,11 @@ audioPlayer.addEventListener("ended", () => {
       statusEl.textContent = text || "";
     }
 
-    async function sendToServer(text) {
-  // 👉 Show the user's question in the chat first
-  addMessage("user", text);
-    }
+    
     async function sendToServer(text) {
   // Disable buttons while the request is in progress
+  addMessage("user", text);
+
   sendBtn.disabled = true;
   voiceBtn.disabled = true;
   setStatus("Thinking...");
