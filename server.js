@@ -76,7 +76,7 @@ app.post("/api/session-notes/export", async (req, res) => {
 
     // One doc file per export
     const timestamp = Date.now();
-    const filename = `lawdio-notes-${safeCaseId}-${timestamp}.docx`;
+    const filename = `notes-${safeCaseId}-${timestamp}.docx`;
     const filePath = path.join(NOTES_DIR, filename);
 
     fs.writeFileSync(filePath, buffer);
